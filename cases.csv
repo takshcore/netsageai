@@ -1,0 +1,258 @@
+case_id,symptom,topology_note,show_outputs,expected_fault,osi_layer,concept,severity
+C001,PC-A cannot ping PC-B on the same switch. Both are assigned to VLAN 10 but connectivity fails.,"2x PCs connected to a Cisco 2960 switch. PC-A on Fa0/1, PC-B on Fa0/2. Both supposed to be in VLAN 10.","Switch# show vlan brief
+VLAN Name                             Status    Ports
+---- -------------------------------- --------- -------------------------------
+1    default                          active    Fa0/1, Fa0/2
+10   SALES                            active    
+Switch# show interfaces Fa0/1 switchport
+Administrative Mode: static access
+Access Mode VLAN: 1",Ports Fa0/1 and Fa0/2 are assigned to VLAN 1 instead of VLAN 10.,Layer 2 - Data Link,VLAN Access Port Configuration,Medium
+C002,All PCs in the building cannot obtain an IP address automatically. Static IPs work fine.,"Cisco 2811 router as DHCP server. LAN 192.168.1.0/24. PCs on Fa0/0.","Router# show ip dhcp pool
+Pool LAN_POOL :
+ Network: 192.168.1.0 255.255.255.0
+ DNS Server: 8.8.8.8
+Router# show running-config | section dhcp
+ip dhcp pool LAN_POOL
+ network 192.168.1.0 255.255.255.0
+ dns-server 8.8.8.8",DHCP pool is missing the default-router (gateway) statement.,Layer 3 - Network,DHCP Pool Configuration,High
+C003,Remote branch office (192.168.3.0/24) cannot reach HQ (192.168.1.0/24). Local LAN works fine.,"Hub-and-spoke WAN. R1: Fa0/0=192.168.1.1/24 Se0/0=10.0.0.1/30. R2: Se0/0=10.0.0.2/30 Fa0/0=192.168.3.1/24.","R2# show ip route
+C    10.0.0.0/30 is directly connected, Serial0/0
+C    192.168.3.0/24 is directly connected, FastEthernet0/0
+R2# show running-config | section router rip
+router rip
+ version 2
+ network 10.0.0.0",R2 RIP config missing network 192.168.3.0 statement so HQ never learns the branch network.,Layer 3 - Network,RIP Routing Protocol Configuration,High
+C004,Server in DMZ (192.168.2.10) is completely unreachable from the internet-facing interface.,"Perimeter router: Gi0/0 outside (203.0.113.1/30) Gi0/1 inside Gi0/2 DMZ (192.168.2.1/24). Extended ACL on Gi0/0 inbound.","Router# show ip access-lists OUTSIDE_IN
+Extended IP access list OUTSIDE_IN
+    10 deny ip any host 192.168.2.10 (1482 matches)
+    20 permit ip any any
+Router# show ip interface Gi0/0
+  Inbound  access list is OUTSIDE_IN",ACL OUTSIDE_IN has explicit deny blocking all traffic to DMZ server before the permit rule.,Layer 3 - Network,ACL Misconfiguration,Critical
+C005,Trunk link between two switches shows only VLAN 1 traffic. VLANs 10 20 30 are dark.,"Two Cisco 3560 switches on Gi0/1 trunk. SW1 has VLANs 10 20 30. SW2 should route them via SVIs.","SW2# show vlan brief
+VLAN Name     Status    Ports
+1    default   active    Gi0/2
+SW2# show interfaces Gi0/1 trunk
+Port        Vlans in spanning tree forwarding state and not pruned
+Gi0/1       1",VLANs 10 20 30 not created on SW2 so STP prunes them from the trunk leaving only VLAN 1.,Layer 2 - Data Link,VLAN Trunk and STP Pruning,Medium
+C006,All users report internet is down. Pinging ISP gateway (8.8.8.8) from router fails.,"Edge router: Gi0/0 to ISP (DHCP) Gi0/1 LAN 192.168.100.1/24. ISP gateway 203.0.113.254.","Router# show ip route
+Gateway of last resort is not set
+C    192.168.100.0/24 is directly connected, GigabitEthernet0/1
+C    203.0.113.252/30 is directly connected, GigabitEthernet0/0
+Router# show running-config | include ip route
+",No default route configured — gateway of last resort is not set.,Layer 3 - Network,Default Route / Gateway of Last Resort,Critical
+C007,VoIP phones on VLAN 20 cannot register with call manager. Data PCs on VLAN 10 work fine.,"Access switch. Ports Fa0/5-Fa0/12 should carry data VLAN 10 and voice VLAN 20.","Switch# show interfaces Fa0/5 switchport
+Access Mode VLAN: 10
+Voice VLAN: none
+Switch# show vlan brief
+VLAN Name     Status    Ports
+10   DATA      active    Fa0/5
+20   VOICE     active    ",Voice VLAN 20 exists but is not assigned to access ports using switchport voice vlan command.,Layer 2 - Data Link,Voice VLAN Configuration,Medium
+C008,IPsec VPN tunnel between branch and HQ shows as down. WAN pings between routers work.,"Site-to-site IPsec VPN. HQ at 10.0.0.1 Branch at 10.0.0.2. IKEv1 Phase 1 failing.","Branch# show crypto isakmp sa
+10.0.0.1   10.0.0.2   MM_NO_STATE   1001   ACTIVE (deleted)
+Branch# show crypto isakmp policy
+encryption: AES-256
+HQ# show crypto isakmp policy
+encryption: 3DES",IKEv1 Phase 1 fails: encryption mismatch — Branch proposes AES-256 but HQ is configured for 3DES.,Layer 3 - Network,IPsec VPN / IKE Phase 1,Critical
+C009,New switch added to network. Connected uplink port shows as err-disabled immediately.,"New Cisco 2960 connected to distribution switch Gi1/0/24. Port security was configured on that port.","Distribution# show interfaces Gi1/0/24 status
+Gi1/0/24   err-disabled
+Distribution# show port-security interface Gi1/0/24
+Port Status: Secure-shutdown
+Violation Mode: Shutdown
+Maximum MAC Addresses: 1
+Security Violation Count: 1",Port security violation triggered by new switch MAC address causing err-disabled state.,Layer 2 - Data Link,Port Security Violation,High
+C010,Inter-VLAN routing stopped after switch reboot. Router-on-a-stick was working before.,"R1 with sub-interfaces Fa0/0.10 and Fa0/0.20 for inter-VLAN routing connected to switch trunk port.","R1# show interfaces Fa0/0
+FastEthernet0/0 is administratively down, line protocol is down
+R1# show interfaces Fa0/0.10
+FastEthernet0/0.10 is up, line protocol is up
+R1# show running-config | section interface Fa0/0
+interface FastEthernet0/0
+ no ip address
+ shutdown",Parent interface Fa0/0 is administratively shut down taking all sub-interfaces down with it.,Layer 1 - Physical,Router Sub-Interface / Trunk,High
+C011,OSPF neighbors not forming between R1 and R2. Both routers show OSPF running.,"R1 (10.1.1.1/24) and R2 (10.1.1.2/24) connected on same Ethernet. Both running OSPF area 0.","R1# show ip ospf neighbor
+Neighbor ID  Pri  State  Dead Time  Address  Interface
+R1# show ip ospf interface Fa0/0
+ Timer intervals configured, Hello 10, Dead 40
+R2# show ip ospf interface Fa0/0
+ Timer intervals configured, Hello 5, Dead 20",OSPF hello/dead timer mismatch — R1 uses Hello 10 / Dead 40 but R2 uses Hello 5 / Dead 20.,Layer 3 - Network,OSPF Timer Mismatch,High
+C012,EIGRP routes missing from routing table. Two routers directly connected but no EIGRP neighbor.,"R1 and R2 directly connected via Fa0/0. Both configured for EIGRP AS 100.","R1# show ip eigrp neighbors
+IP-EIGRP neighbors for process 100
+R2# show running-config | section router eigrp
+router eigrp 200
+ network 10.0.0.0",EIGRP AS number mismatch — R1 runs AS 100 but R2 runs AS 200. Neighbors require matching AS numbers.,Layer 3 - Network,EIGRP AS Number Mismatch,High
+C013,Serial link between two routers is down. Both DCE and DTE configured.,"R1 (DCE) Se0/0 connected to R2 (DTE) Se0/0. PPP encapsulation on both ends.","R1# show interfaces Se0/0
+Serial0/0 is up, line protocol is down
+ Encapsulation PPP
+R2# show interfaces Se0/0
+Serial0/0 is up, line protocol is down
+ Encapsulation HDLC
+R1# show running-config | section interface Se0/0
+interface Serial0/0
+ encapsulation ppp",Encapsulation mismatch — R1 uses PPP but R2 uses HDLC. Both ends must match.,Layer 2 - Data Link,Serial Encapsulation Mismatch,High
+C014,New PC gets IP from DHCP but cannot reach anything outside its subnet.,"Router as DHCP server. Pool for 192.168.5.0/24. Router Fa0/0 = 192.168.5.1/24.","Router# show ip dhcp pool
+Pool OFFICE :
+ Network: 192.168.5.0 255.255.255.0
+ Default router: 192.168.5.254
+Router# show interfaces Fa0/0
+FastEthernet0/0 is up
+ Internet address is 192.168.5.1/24",DHCP pool default-router (192.168.5.254) does not match the actual router interface IP (192.168.5.1). Clients get wrong gateway.,Layer 3 - Network,DHCP Default Router Mismatch,Medium
+C015,Two PCs on same switch cause intermittent connectivity loss for each other.,"Two PCs on SW1. PC-A = 192.168.1.10/24. PC-B was mis-configured with same IP 192.168.1.10/24.","SW1# show mac address-table
+Vlan  Mac Address     Type    Ports
+1     aabb.cc00.0001  DYNAMIC Fa0/1
+1     aabb.cc00.0002  DYNAMIC Fa0/2
+Router# show arp
+192.168.1.10  aabb.cc00.0001
+192.168.1.10  aabb.cc00.0002
+%IP-4-DUPADDR: Duplicate address 192.168.1.10 on FastEthernet0/0",Duplicate IP address 192.168.1.10 assigned to two different PCs causing ARP conflicts.,Layer 3 - Network,Duplicate IP Address,Critical
+C016,Users on 192.168.10.0/24 cannot reach server on 192.168.20.0/24 through the router.,"R1 with Fa0/0 (192.168.10.1/24) and Fa0/1 (192.168.20.1/24). Extended ACL on Fa0/0 outbound.","Router# show ip access-lists BLOCK_INTER
+Extended IP access list BLOCK_INTER
+    10 deny ip 192.168.10.0 0.0.0.255 192.168.20.0 0.0.0.255 (230 matches)
+    20 permit ip any any
+Router# show ip interface Fa0/0
+  Outbound access list is BLOCK_INTER",ACL BLOCK_INTER explicitly denies traffic from VLAN 10 to VLAN 20 on the outbound interface.,Layer 3 - Network,ACL Blocking Inter-VLAN Traffic,High
+C017,NAT is configured but inside hosts still appear with private IPs on the outside.,"R1 as NAT router. Gi0/0 outside (public) Gi0/1 inside (192.168.1.0/24). NAT overload configured.","Router# show ip nat translations
+Router# show running-config | section ip nat
+ip nat inside source list 1 interface GigabitEthernet0/0 overload
+Router# show ip interface Gi0/0
+  Outbound access list is not set
+Router# show ip interface Gi0/1
+  NAT: disabled",NAT inside is not enabled on Gi0/1 — the inside interface has NAT disabled so traffic is not translated.,Layer 3 - Network,NAT Inside Interface Missing,High
+C018,SSH to router fails with connection refused. Telnet works fine.,"Cisco 2811 router. Admin wants SSH-only access. Attempted SSH from PC (192.168.1.100).","Router# show ip ssh
+SSH Disabled - version 1.99
+%Please create RSA keys (of at least 768 bits size) to enable SSH v1.99
+Router# show running-config | section line vty
+line vty 0 4
+ password cisco
+ login
+ transport input telnet",SSH is disabled because RSA keys have not been generated. Crypto key generate rsa is required.,Layer 7 - Application,SSH / RSA Key Generation,Medium
+C019,PC cannot reach default gateway even though it has the correct IP and mask.,"PC on Fa0/1 of SW1. Default gateway = 192.168.1.1 (router Fa0/0). Router Fa0/0 connected to Fa0/24 of SW1.","SW1# show interfaces Fa0/24 status
+Port    Status       Vlan
+Fa0/24  notconnect   1
+SW1# show interfaces Fa0/1 status
+Port    Status       Vlan
+Fa0/1   connected    1",Uplink port Fa0/24 (connecting switch to router) shows notconnect — physical cable is unplugged or faulty.,Layer 1 - Physical,Physical Link Down,Critical
+C020,Routing table on R2 shows correct routes but traffic still loops between R1 and R2.,"R1 and R2 in a two-router topology. Static routes configured on both. R1 points to R2 for 10.0.0.0/8 and R2 points to R1 for same.","R1# show ip route
+S    10.0.0.0/8 [1/0] via 192.168.1.2
+R2# show ip route
+S    10.0.0.0/8 [1/0] via 192.168.1.1
+R1# show ip route 10.5.5.5
+Routing entry for 10.0.0.0/8
+  Known via static, via 192.168.1.2",Routing loop — R1 and R2 each point to the other for 10.0.0.0/8 creating an infinite loop with no exit.,Layer 3 - Network,Static Route Routing Loop,Critical
+C021,Spanning tree is blocking the only uplink on an access switch causing total outage.,"Access switch SW3 connected to distribution SW1 via Fa0/24 (primary) and Fa0/23 (backup). STP blocking Fa0/24.","SW3# show spanning-tree
+VLAN0001
+  Root ID Priority 32769 Address aabb.cc00.1111
+  Bridge ID Priority 32769 Address aabb.cc00.9999
+Interface  Role  Sts  Cost  Prio
+Fa0/23     Root  FWD  19    128
+Fa0/24     Altn  BLK  19    128",STP elected Fa0/23 as root port and blocked Fa0/24. Primary uplink is blocked — port priority or cost adjustment needed.,Layer 2 - Data Link,Spanning Tree Port Blocking,High
+C022,HSRP active router is the lower-priority router causing suboptimal forwarding.,"Two routers R1 (priority 110) and R2 (priority 90) in HSRP group 1. R1 should be active but R2 is active.","R1# show standby brief
+P indicates configured to preempt.
+Interface  Grp  Pri  P  State   Active    Standby
+Fa0/0      1    110     Standby 192.168.1.3 local
+R2# show standby brief
+Interface  Grp  Pri  P  State   Active    Standby
+Fa0/0      1    90      Active  local     192.168.1.2",R1 has higher priority (110) but preempt is not configured so R2 remained active after it came up first.,Layer 3 - Network,HSRP Preempt Missing,Medium
+C023,EtherChannel between two switches is not forming. Individual links are up.,"SW1 and SW2 connected via Fa0/1 and Fa0/2. LACP EtherChannel configured on both sides.","SW1# show etherchannel summary
+Flags: D-down P-bundled U-in-use
+Group  Port-channel  Protocol  Ports
+1      Po1(SD)        LACP      Fa0/1(D) Fa0/2(D)
+SW1# show running-config | section interface Fa0/1
+interface FastEthernet0/1
+ channel-group 1 mode passive
+SW2# show running-config | section interface Fa0/1
+interface FastEthernet0/1
+ channel-group 1 mode passive",Both sides configured as LACP passive — at least one side must be active for negotiation to succeed.,Layer 2 - Data Link,EtherChannel LACP Mode Mismatch,Medium
+C024,IPv6 hosts on the same link cannot communicate with each other.,"Two routers R1 and R2 on same Ethernet segment. IPv6 unicast routing enabled. Link-local addresses expected.","R1# show ipv6 interface Fa0/0
+FastEthernet0/0 is up, line protocol is up
+  IPv6 is enabled, link-local address is FE80::1
+  No global unicast address is configured
+R2# show ipv6 neighbors
+IPv6 Address  Age  Link-layer Addr  State  Interface
+R1# ping FE80::1
+Output Interface: FastEthernet0/0
+!!!!!",No global unicast IPv6 addresses configured — only link-local addresses exist so hosts cannot route beyond the local link.,Layer 3 - Network,IPv6 Unicast Address Missing,Medium
+C025,BGP neighbor relationship between two ISP routers not establishing.,"R1 (AS 65001) and R2 (AS 65002) configured for eBGP. Peering on 10.0.0.0/30 link.","R1# show bgp summary
+Neighbor   V  AS    MsgRcvd  MsgSent  Up/Down  State/PfxRcd
+10.0.0.2   4  65002 0        0        never    Active
+R1# show running-config | section router bgp
+router bgp 65001
+ neighbor 10.0.0.2 remote-as 65002
+R2# show running-config | section router bgp
+router bgp 65002
+ neighbor 10.0.0.1 remote-as 65001
+R2# show ip interface brief
+GigabitEthernet0/0  10.0.0.2  YES manual  up  down",R2 Gi0/0 line protocol is down — physical connectivity issue preventing BGP TCP session from establishing.,Layer 1 - Physical,BGP Neighbor Down (Physical),Critical
+C026,DHCP snooping enabled but legitimate DHCP offers are being dropped on access ports.,"Core switch with DHCP snooping enabled globally. DHCP server connected on Gi0/1. Clients on Fa0/1-Fa0/10.","Switch# show dhcp snooping
+DHCP snooping is configured on following VLANs: 1
+Switch# show dhcp snooping binding
+Switch# show ip dhcp snooping interface Gi0/1
+Interface    Trusted    Rate limit (pps)
+Gi0/1        no         15",DHCP server port Gi0/1 is not configured as trusted — DHCP snooping drops all server offers arriving on untrusted ports.,Layer 2 - Data Link,DHCP Snooping Trusted Port,High
+C027,Users report website names don't resolve but IP address pings work fine.,"Office LAN. Router as DNS relay. Clients use 192.168.1.1 as DNS server. ISP DNS is 8.8.8.8.","Router# show running-config | include dns
+ip name-server 8.8.8.8
+Router# show running-config | section interface Fa0/0
+interface FastEthernet0/0
+ ip address 192.168.1.1 255.255.255.0
+ ip helper-address 192.168.1.1
+Router# debug ip dns
+DNS: no view dns process running",ip dns server command not configured on router — router cannot answer client DNS queries despite having a name-server set.,Layer 7 - Application,DNS Server Not Enabled on Router,Medium
+C028,Wireless clients associated to AP but cannot get IP address. Wired clients work fine.,"Cisco WLC managing lightweight APs. SSID CORP mapped to VLAN 30. DHCP scope for VLAN 30 on router.","WLC# show interface summary
+Interface  VLAN  IP Address        Type
+management  1    192.168.1.10/24  Static
+CORP_WIFI  30   192.168.30.1/24  Dynamic
+Router# show ip dhcp pool
+No DHCP pool configured for 192.168.30.0","No DHCP pool configured on the router for the wireless VLAN 30 (192.168.30.0/24). Wireless clients have no IP source.",Layer 3 - Network,DHCP Pool Missing for Wireless VLAN,High
+C029,After adding a new router to OSPF area 1 routes are not being redistributed into area 0.,"OSPF multi-area. ABR connects area 0 and area 1. New router R3 added to area 1 with loopback 3.3.3.3.","R3# show ip ospf neighbor
+Neighbor ID  State  Interface
+1.1.1.1      FULL   Fa0/0
+ABR# show ip route ospf
+O IA 192.168.1.0/24 [110/2] via 10.0.0.1
+ABR# show ip ospf database
+R3 loopback not in database
+R3# show running-config | section router ospf
+router ospf 1
+ network 10.1.1.0 0.0.0.255 area 1",R3 loopback 3.3.3.3 not included in any OSPF network statement so it is not advertised into the OSPF domain.,Layer 3 - Network,OSPF Network Statement Missing,Medium
+C030,Inter-VLAN routing works for VLAN 10 but VLAN 20 hosts cannot reach any other network.,"Layer 3 switch with SVIs. SVI for VLAN 10 (192.168.10.1/24) works. SVI for VLAN 20 (192.168.20.1/24) created but down.","SW# show interfaces vlan 20
+Vlan20 is up, line protocol is down
+SW# show vlan brief
+VLAN Name     Status    Ports
+10   DATA      active    Fa0/1
+20   VOICE     active    
+SW# show running-config | section interface Vlan20
+interface Vlan20
+ ip address 192.168.20.1 255.255.255.0",SVI VLAN 20 line protocol is down because no active physical port is assigned to VLAN 20 on the switch.,Layer 2 - Data Link,SVI Line Protocol Down,High
+C031,PPPoE client router cannot connect to ISP. Authentication fails repeatedly.,"Edge router configured as PPPoE client on Gi0/0. ISP uses CHAP authentication. Username and password set.","Router# show pppoe session
+ SID  RemMAC         LocMAC         Intf  VAccess  State
+   1  aabb.cc001122  aabb.cc003344  Gi0/0  Vi1      LCP_LISN
+Router# debug ppp authentication
+PPP: Phase is AUTHENTICATING
+CHAP: O CHALLENGE id 1 len 23 from Router
+CHAP: I FAILURE id 1 len 26 msg is Failed",CHAP authentication failing — username or password configured on the router does not match ISP's expected credentials.,Layer 2 - Data Link,PPPoE CHAP Authentication Failure,Critical
+C032,Router has two paths to the destination but always uses the slower serial link.,"R1 connected to R2 via Fa0/0 (fast) and Se0/0 (slow). Both running OSPF. Fa0/0 should be preferred.","R1# show ip route 192.168.5.0
+Routing entry for 192.168.5.0/24
+  Known via ospf, via 10.0.0.2, Serial0/0 cost 64
+R1# show ip ospf interface Fa0/0
+ Cost: 64
+R1# show ip ospf interface Se0/0
+ Cost: 64","OSPF cost is identical on both interfaces (64). FastEthernet should have lower cost (1) than Serial. Auto-cost reference-bandwidth may not match link speeds.",Layer 3 - Network,OSPF Cost / Reference Bandwidth,Medium
+C033,Users in one office building cannot reach users in another building on same campus network.,"Two buildings connected by fiber. Building A switch (SW-A) uplinks to core via Gi0/1. Same VLAN 50 across both.","SW-A# show interfaces Gi0/1 trunk
+Port  Mode  Encapsulation  Status   Native vlan
+Gi0/1 auto  negotiate      not-trunking  1
+SW-Core# show interfaces Gi0/1 trunk
+Port  Mode  Encapsulation  Status   Native vlan
+Gi0/1 on    802.1q         trunking  1",SW-A trunk port is in auto mode but SW-Core is in on mode — DTP will not negotiate a trunk when one side is on and the other is auto.,Layer 2 - Data Link,DTP Trunk Negotiation Failure,High
+C034,Network admin locked out of router after applying a new ACL.,"Router with ACL applied to VTY lines to restrict management access. Admin applied wrong source IP.","Router# show running-config | section line vty
+line vty 0 4
+ access-class MGMT_ACCESS in
+ login local
+ transport input ssh
+Router# show ip access-lists MGMT_ACCESS
+Extended IP access list MGMT_ACCESS
+    10 permit tcp host 10.10.10.99 any eq 22
+    20 deny ip any any (implicit)",ACL MGMT_ACCESS only permits SSH from 10.10.10.99 — admin is connecting from a different IP so they are blocked by the implicit deny.,Layer 4 - Transport,VTY ACL Lockout,Critical
+C035,Multicast video stream not reaching receivers even though PIM is configured.,"Multicast source at 239.1.1.1. Receivers on multiple VLANs. PIM sparse-mode on all router interfaces.","Router# show ip pim neighbor
+Router# show ip mroute 239.1.1.1
+(*, 239.1.1.1), uptime 00:05:10, sparse-mode
+  Incoming interface: Null
+  Outgoing interface list: Null
+Router# show running-config | include ip multicast-routing
+",ip multicast-routing command is missing from global config — PIM neighbors and mroute entries cannot form without it.,Layer 3 - Network,IP Multicast Routing Not Enabled,High
