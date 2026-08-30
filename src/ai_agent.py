@@ -14,7 +14,6 @@ Public API:
   diagnose(case: dict) -> DiagnosisResult | ErrorResult
 """
 
-from _future_ import annotations
 
 import json
 import os
