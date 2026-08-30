@@ -152,7 +152,7 @@ def diagnose(case: dict) -> DiagnosisResult | ErrorResult:
     if gemini_key and not gemini_key.startswith("your"):
         api_key = gemini_key
         base_url = "https://generativelanguage.googleapis.com/v1beta/openai/"
-        model = "gemini-1.5-flash"
+        model = "gemini-2.0-flash"
     elif api_key and not api_key.startswith("sk-your"):
         base_url = None  # default OpenAI
     else:
