@@ -1,0 +1,12 @@
+Troubleshoot the following Cisco network lab case:
+
+SYMPTOM:
+{symptom}
+
+TOPOLOGY:
+{topology_note}
+
+SHOW COMMAND OUTPUTS:
+{show_outputs}
+
+Diagnose the fault and provide your response in the required JSON format only.
