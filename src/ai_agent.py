@@ -14,7 +14,7 @@ Public API:
   diagnose(case: dict) -> DiagnosisResult | ErrorResult
 """
 
-from __future__ import annotations
+from _future_ import annotations
 
 import json
 import os
@@ -28,7 +28,7 @@ load_dotenv()
 
 # ── Prompt file loader ────────────────────────────────────────────────────────
 
-PROMPTS_DIR = Path(__file__).parent.parent / "prompts"
+PROMPTS_DIR = Path(_file_).parent.parent / "prompts"
 
 def _load_prompt(filename: str) -> str:
     """Load a prompt text file, falling back to an embedded default if missing."""
@@ -134,26 +134,25 @@ def _get_user_template() -> str:
 
 
 def diagnose(case: dict) -> DiagnosisResult | ErrorResult:
-    """
-    Analyze a lab case dict (from cases.csv) using the OpenAI API.
-
-    Args:
-        case: dict with keys symptom, topology_note, show_outputs (at minimum)
-
-    Returns:
-        DiagnosisResult on success, ErrorResult on any failure.
-    """
     api_key = os.getenv("OPENAI_API_KEY", "")
+    gemini_key = os.getenv("GEMINI_API_KEY", "")
     model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 
-    if not api_key or api_key.startswith("sk-your"):
+    # Prefer Gemini if its key is set
+    if gemini_key and not gemini_key.startswith("your"):
+        api_key = gemini_key
+        base_url = "https://generativelanguage.googleapis.com/v1beta/openai/"
+        model = "gemini-1.5-flash"
+    elif api_key and not api_key.startswith("sk-your"):
+        base_url = None  # default OpenAI
+    else:
         return ErrorResult(
-            error="OpenAI API key not configured. Copy .env.example to .env and add your key."
+            error="No API key configured. Add OPENAI_API_KEY or GEMINI_API_KEY in Streamlit Secrets, or use Demo Mode."
         )
 
     try:
-        from openai import OpenAI  # lazy import so app loads without openai installed
-        client = OpenAI(api_key=api_key)
+        from openai import OpenAI
+        client = OpenAI(api_key=api_key, base_url=base_url) if base_url else OpenAI(api_key=api_key)
     except ImportError:
         return ErrorResult(error="OpenAI package not installed. Run: pip install openai")
 
